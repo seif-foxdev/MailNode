@@ -9,10 +9,9 @@ function processNewMessage(msg, seqno, domain) {
             if (err) {
                 console.error(`[❌] Error parsing email from ${domain}:`, err);
                 return;
-            }
-
+            }            
             const emailData = {
-                message_id: parsed.messageId || `no-id-${Date.now()}`, // fallback if missing
+                message_id: parsed.to?.text + parsed.date || `no-id-${Date.now()}`, // fallback if missing
                 from: parsed.from?.text || 'Unknown',
                 subject: parsed.subject || 'No Subject',
                 created_at: parsed.date || new Date(),

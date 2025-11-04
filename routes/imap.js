@@ -4,9 +4,7 @@ const Imap = require('../classes/Imap');
 const router = express.Router();
 router.post('/', validateConfig, (req, res) => {
     const imap = new Imap(req.body);
-    imap.connect();
-    // console.log(imap.activeImaps);
-    
+    imap.connect();    
     res.status(200).send('IMAP endpoint is set up and ready.');
 });
 router.delete('/:domain',  (req, res) => {

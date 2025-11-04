@@ -12,10 +12,11 @@ class ImapClass {
             port: config.port,
             tls: config.tls
         });
+        this.since = config.timestamp || new Date();
         this.domain = config.user.split('@')[1];
     }
-    
-    
+
+
     connect() {
         ImapClass.activeImaps[this.domain] = this;
         this.imap.once('ready', () => {
@@ -23,22 +24,48 @@ class ImapClass {
             this.imap.openBox('INBOX', false, (err, box) => {
                 if (err) throw err;
 
+                this.imap.search(['UNSEEN', ['SINCE', this.since]], (err, results) => {
+                    if (err) {
+                        console.error(`[❌] Search error on ${this.domain}:`, err);
+                        return;
+                    }
+                    console.log(`Count:${results.length}`);
+
+                    if (!results || results.length === 0) {
+                        console.log(`[ℹ️] No unseen messages found on ${this.domain}.`);
+                        return;
+                    }
+
+                    const f = this.imap.fetch(results, { bodies: '', markSeen: true });
+                    f.on('message', (msg, seqno) => {
+                        processNewMessage(msg, seqno, this.domain);
+                    });
+
+                    f.once('error', (err) => {
+                        console.error(`[❌] Fetch error on ${this.domain}:`, err);
+                    });
+
+                    f.once('end', () => {
+                        console.log(`[✅] Finished fetching unseen messages on ${this.domain}.`);
+                    });
+                });
                 console.log(`[📬] INBOX opened for ${this.domain}. Listening for new mail...`);
                 this.imap.on('mail', (numNewMsgs) => {
                     console.log(`[📩] ${numNewMsgs} new message(s) detected on ${this.domain}`);
 
-                    this.imap.search(['UNSEEN'], (err, results) => {
+                    this.imap.search(['UNSEEN', ['SINCE', this.since]], (err, results) => {
                         if (err) {
                             console.error(`[❌] Search error on ${this.domain}:`, err);
                             return;
                         }
+                        console.log(`Count:${results.length}`);
 
                         if (!results || results.length === 0) {
                             console.log(`[ℹ️] No unseen messages found on ${this.domain}.`);
                             return;
                         }
 
-                        const f = this.imap.fetch(results[results.length - 1], { bodies: '' });
+                        const f = this.imap.fetch(results[results.length - 1], { bodies: '', markSeen: true });
                         f.on('message', (msg, seqno) => {
                             processNewMessage(msg, seqno, this.domain);
                         });
@@ -56,11 +83,13 @@ class ImapClass {
         });
 
         this.imap.once('error', (err) => {
+            this.imap._config.timestamp = new Date();
             console.error(`[❌] IMAP error on ${this.domain}:`, err);
             redisClient.publishMessage('imapError', this.imap);
         });
 
         this.imap.once('end', () => {
+            this.imap._config.timestamp = new Date();
             console.log(`[🔚] IMAP connection ended for ${this.domain}.`);
             redisClient.publishMessage('imapEnded', this.imap._config);
         });

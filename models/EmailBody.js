@@ -11,17 +11,19 @@ const emailSchema = new mongoose.Schema({
 
 emailSchema.statics.save = async function (emailData) {
     try {
-        const result = await this.findOneAndUpdate(
+        const result = await this.updateOne(
             { message_id: emailData.message_id },
             { $setOnInsert: emailData },
-            { upsert: true, new: true, select: ' _id from subject to' }
+            { upsert: true }
         );
-        if (result.upsertedCount > 0) {
+
+        if (result.upsertedId) {
+            const newDoc = await this.findById(result.upsertedId);
             console.log(`[📥] New email saved (${emailData.message_id}) from ${emailData.domain}`);
-            return { success: true, action: 'inserted', result: result._doc };
+            return { success: true, action: 'inserted', result: newDoc._doc };
         } else {
             console.log(`[🔁] Duplicate email ignored (${emailData.message_id}) from ${emailData.domain}`);
-            return { success: true, action: 'duplicate', result: result._doc };
+            return { success: false, action: 'duplicate', result: null };
         }
     } catch (err) {
         if (err.code === 11000) {
